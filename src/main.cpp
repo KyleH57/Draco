@@ -6,6 +6,8 @@
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
 #include <Update.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 #include "Constellation.h"
 
@@ -33,6 +35,10 @@ volatile int right_button_presses = 3;
 
 #define RIGHT_BUTTON 26
 void IRAM_ATTR right_isr_handler();
+
+bool auto_on = false;
+bool auto_turned_off = false;
+int prevDay = -1;
 
 /* Style */
 String style =
@@ -90,6 +96,8 @@ String serverIndex =
     style;
 
 WiFiManager wifiManager;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -7 * 60 * 60);
 
 /* setup function */
 void setup(void)
@@ -117,7 +125,7 @@ void setup(void)
   wifiManager.setConfigPortalTimeout(60);
 
   // Starts the AP (Access Point) if the ESP32 can't connect to the Wi-Fi network
-  if (!wifiManager.autoConnect("Draco_ESP32_AP", "")) // no password for now
+  if (!wifiManager.autoConnect("hot_tub_stream_prod", "")) // no password for now
   {
     Serial.println("Failed to connect and hit timeout");
     delay(3000);
@@ -196,8 +204,7 @@ void setup(void)
       });
   server.begin();
 
-
-
+  timeClient.begin(); // Initialize the NTP client
 }
 
 bool wifi_reset_flag = false;
@@ -208,6 +215,48 @@ void loop(void)
 {
   unsigned long elapsed_time = millis();
   myConstellation->run(elapsed_time, right_button_presses, left_button_presses);
+
+  timeClient.update(); // Update the NTP client
+
+  int hours = timeClient.getHours();
+  int minutes = timeClient.getMinutes();
+  int day = timeClient.getDay();
+
+  if (prevDay != day)
+  { // Day has changed, reset the flag
+    prevDay = day;
+    auto_on = false;
+    auto_turned_off = false;
+  }
+
+  if (!auto_on && left_button_presses == 0 && hours == 18 && minutes == 0)
+  {
+    Serial.println("It's 6PM!");
+    // Add the code you want to execute at 6PM here.
+    // ...
+    left_button_presses = 51;
+
+    auto_on = true; // Set the flag to true to prevent this action from happening again today
+  }
+
+  // //print left button presses, hours, and minutes on the same line
+  // Serial.print("Left button presses: ");
+  // Serial.print(left_button_presses);
+  // Serial.print(" Hours: ");
+  // Serial.print(hours);
+  // Serial.print(" Minutes: ");
+  // Serial.println(minutes);
+
+
+  if (!auto_turned_off && left_button_presses > 0 && hours == 23 && minutes == 59)
+  {
+    Serial.println("It's 11:59PM!");
+    // Add the code you want to execute at 11:59PM here.
+    // ...
+    left_button_presses = 0;
+
+    auto_turned_off = true; // Set the flag to true to prevent this action from happening again today
+  }
 
   server.handleClient();
   // delay(1);
