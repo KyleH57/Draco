@@ -12,7 +12,7 @@
 
 class Constellation {
 public:
-  Constellation(std::string angles, int num_leds_segment, float spacing, float edge_spacing, float brightness);
+  Constellation(std::string angles, int num_leds_segment, float spacing, float edge_spacing);
 
   void run(unsigned long elapsed_time, uint8_t effect, uint8_t brightness);
 
@@ -25,7 +25,6 @@ private:
   int num_leds_segment;
   float spacing;
   float edge_spacing;
-  float brightness;
 
   std::vector<Segment> segments;
   std::vector<WS2812LED> leds;

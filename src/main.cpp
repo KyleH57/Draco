@@ -22,6 +22,16 @@ int ledState = LOW;               // ledState used to set the LED
 WebServer server(80);
 Constellation *myConstellation;
 
+WiFiManager wifiManager;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -7 * 60 * 60);
+
+WiFiClient client;
+const char *ledServer = "192.168.0.113";
+const uint16_t port = 4551;
+
+bool connectedToLedServer = false;
+
 const uint16_t DEBOUNCE_TIME = 200; // in milliseconds
 
 void IRAM_ATTR left_isr_handler_press();
@@ -30,7 +40,7 @@ volatile unsigned long buttonPressTime = 0;
 volatile unsigned long buttonReleaseTime = 0;
 volatile unsigned long elapsedTime = 0;
 
-volatile int left_button_presses = 255;
+volatile int brightness = 255;
 volatile int right_button_presses = 3;
 
 #define RIGHT_BUTTON 26
@@ -95,10 +105,6 @@ String serverIndex =
     "</script>" +
     style;
 
-WiFiManager wifiManager;
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -7 * 60 * 60);
-
 /* setup function */
 void setup(void)
 {
@@ -107,9 +113,9 @@ void setup(void)
   int num_leds_segment = 15;  // Example value. Adjust as needed.
   float spacing = 15.0f;      // Example value. Adjust as needed.
   float edge_spacing = 13.0f; // Example value. Adjust as needed.
-  float brightness = 0.5f;    // Dead code???
+  // float brightness = 0.5f;    // Dead code???
 
-  myConstellation = new Constellation(angles, num_leds_segment, spacing, edge_spacing, brightness);
+  myConstellation = new Constellation(angles, num_leds_segment, spacing, edge_spacing);
   // myConstellation is now initialized and can be used
 
   pinMode(GPIO_NUM, INPUT_PULLUP);                                                   // set GPIO0 as input, enable internal pullup resistor
@@ -205,6 +211,17 @@ void setup(void)
   server.begin();
 
   timeClient.begin(); // Initialize the NTP client
+
+  // connect to led server
+  if (client.connect(ledServer, port))
+  {
+    Serial.println("Connected to LED server");
+    connectedToLedServer = true;
+  }
+  else
+  {
+    Serial.println("Connection to LED server failed");
+  }
 }
 
 bool wifi_reset_flag = false;
@@ -214,7 +231,7 @@ bool right_button_pressed = false;
 void loop(void)
 {
   unsigned long elapsed_time = millis();
-  myConstellation->run(elapsed_time, right_button_presses, left_button_presses);
+  myConstellation->run(elapsed_time, right_button_presses, brightness);
 
   timeClient.update(); // Update the NTP client
 
@@ -229,37 +246,26 @@ void loop(void)
     auto_turned_off = false;
   }
 
-  if (!auto_on && left_button_presses == 0 && hours == 18 && minutes == 0)
+  if (!auto_on && brightness == 0 && hours == 18 && minutes == 0)
   {
     Serial.println("It's 6PM!");
-    // Add the code you want to execute at 6PM here.
-    // ...
-    left_button_presses = 51;
+
+    brightness = 51;
 
     auto_on = true; // Set the flag to true to prevent this action from happening again today
   }
 
-  // //print left button presses, hours, and minutes on the same line
-  // Serial.print("Left button presses: ");
-  // Serial.print(left_button_presses);
-  // Serial.print(" Hours: ");
-  // Serial.print(hours);
-  // Serial.print(" Minutes: ");
-  // Serial.println(minutes);
-
-
-  if (!auto_turned_off && left_button_presses > 0 && hours == 23 && minutes == 59)
+  if (!auto_turned_off && brightness > 0 && hours == 23 && minutes == 59)
   {
     Serial.println("It's 11:59PM!");
     // Add the code you want to execute at 11:59PM here.
     // ...
-    left_button_presses = 0;
+    brightness = 0;
 
     auto_turned_off = true; // Set the flag to true to prevent this action from happening again today
   }
 
-  server.handleClient();
-  // delay(1);
+  server.handleClient(); // Handle things like web requests
 
   if (wifi_reset_flag)
   {
@@ -269,19 +275,19 @@ void loop(void)
     ESP.restart();
   }
 
-  if (left_button_pressed)
+  if (left_button_pressed) // adjust brightness
   {
     left_button_pressed = false;
-    left_button_presses += 51;
-    Serial.println(left_button_presses);
+    brightness += 51;
+    Serial.println(brightness);
 
-    if (left_button_presses > 255)
+    if (brightness > 255)
     {
-      left_button_presses = 0;
+      brightness = 0;
     }
   }
 
-  if (right_button_pressed)
+  if (right_button_pressed) // cycle the patterns
   {
     right_button_pressed = false;
     right_button_presses += 1;
@@ -307,16 +313,27 @@ void loop(void)
     }
   }
 
-  // loop to blink without delay
+  // loop to blink the debug without delay
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval)
   {
-    // save the last time you blinked the LED
-    previousMillis = currentMillis;
-    // if the LED is off turn it on and vice-versa:
-    ledState = not(ledState);
-    // set the LED with the ledState of the variable:
-    digitalWrite(led, ledState);
+    if (connectedToLedServer)
+    {
+      client.println("Hello from ESP32!");
+
+      // Read and print the response
+      while (client.available())
+      {
+        String line = client.readStringUntil('\n');
+        Serial.println(line);
+      }
+      // save the last time you blinked the LED
+      previousMillis = currentMillis;
+      // if the LED is off turn it on and vice-versa:
+      ledState = not(ledState);
+      // set the LED with the ledState of the variable:
+      digitalWrite(led, ledState);
+    }
   }
 }
 

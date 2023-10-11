@@ -2,8 +2,8 @@
 #include <sstream>
 #include <cmath> // For cos, sin functions
 
-Constellation::Constellation(std::string angles_str, int num_leds_segment, float spacing, float edge_spacing, float brightness)
-    : num_leds_segment(num_leds_segment), spacing(spacing), edge_spacing(edge_spacing), brightness(brightness), num_leds(0)
+Constellation::Constellation(std::string angles_str, int num_leds_segment, float spacing, float edge_spacing)
+    : num_leds_segment(num_leds_segment), spacing(spacing), edge_spacing(edge_spacing), num_leds(0)
 {
 
     std::istringstream ss(angles_str);
@@ -34,18 +34,6 @@ void Constellation::createConstellation()
         Segment segment(x, y, angle, num_leds_segment, spacing, edge_spacing, num_leds_segment * counter);
         segments.push_back(segment);
         num_leds += segment.get_num_leds();
-
-        // // Print segment information
-        // Serial.print("Segment ");
-        // Serial.print(counter);
-        // Serial.print(": start(");
-        // Serial.print(x);
-        // Serial.print(", ");
-        // Serial.print(y);
-        // Serial.print("), end(");
-        // Serial.print(segment.get_x_end());
-        // Serial.print(", ");
-        // Serial.println(segment.get_y_end());
         
         counter += 1;
 
@@ -72,17 +60,6 @@ void Constellation::createConstellation()
             led.set_centroid(x - 0, y - 408.76); // Added centroid coordinates to each LED
             leds.push_back(led);
 
-            // // // Print LED information
-            // Serial.print("LED ");
-            // Serial.print(i);
-            // Serial.print(" at (");
-            // Serial.print(x);
-            // Serial.print(", ");
-            // Serial.print(y);
-            // Serial.print("), centroid: (");
-            // Serial.print(led.get_xCoord_centroid());
-            // Serial.print(", ");
-            // Serial.println(led.get_yCoord_centroid());
         }
     }
 }
@@ -102,25 +79,24 @@ void Constellation::run(unsigned long elapsed_time, uint8_t effect, uint8_t brig
     // switch case
     switch (effect)
     {
-    case 0:
+    case 0: // Random rgb wave
     {
-        for (int i = 0; i < num_leds; i++) // Random rgb wave
+        for (int i = 0; i < num_leds; i++) 
         {
             CHSV color = CHSV((i * 256 / num_leds + elapsed_time / 5) % 256, 255, 255);
             ledsFastLED[i] = color;
         }
         break;
     }
-    case 1:
+    case 1: // White
     {
-        // White
         for (int i = 0; i < num_leds; i++)
         {
             ledsFastLED[i] = CRGB(255, 255, 255);
         }
         break;
     }
-    case 2:
+    case 2: // Color cycle no fade
     {
         hue = (elapsed_time / 50) % 256; // Cycle through all hues
 
@@ -132,7 +108,7 @@ void Constellation::run(unsigned long elapsed_time, uint8_t effect, uint8_t brig
         }
         break;
     }
-    case 3:
+    case 3: // Rainbow wave
     {
         float speed = 0.6;
         float wave_length = 800.0;
@@ -151,27 +127,10 @@ void Constellation::run(unsigned long elapsed_time, uint8_t effect, uint8_t brig
 
             ledsFastLED[i] = color_rgb;
 
-            // float x_coord = leds[i].get_xCoord_centroid();
-            // int testvar = (int)(abs(x_coord / 2));
-
-            // float y_coord = leds[i].get_yCoord_centroid();
-            // int testvar2 = (int)(abs(y_coord / 2));
-
-            // if (testvar > 255)
-            // {
-            //     testvar = 255;
-            // }
-            // if (testvar2 > 255)
-            // {
-            //     testvar2 = 255;
-            // }
-
-
-            // ledsFastLED[i] = CRGB(testvar, 0, testvar2);
         }
         break;
     }
-    case 4:
+    case 4: // Color cycle
     {
         hue = (elapsed_time / 30) % 256;                   // Cycle through all hues
         float sin_value = std::sin(elapsed_time / 1000.0); // get sin value
@@ -189,6 +148,10 @@ void Constellation::run(unsigned long elapsed_time, uint8_t effect, uint8_t brig
             ledsFastLED[i] = color;
         }
         break;
+    }
+    case 5:
+    {
+        // remote server mode
     }
     }
     FastLED.show();
