@@ -40,7 +40,7 @@ volatile unsigned long buttonPressTime = 0;
 volatile unsigned long buttonReleaseTime = 0;
 volatile unsigned long elapsedTime = 0;
 
-volatile int brightness = 255;
+volatile int brightness = 0;
 volatile int right_button_presses = 3;
 
 #define RIGHT_BUTTON 26
@@ -212,16 +212,16 @@ void setup(void)
 
   timeClient.begin(); // Initialize the NTP client
 
-  // connect to led server
-  if (client.connect(ledServer, port))
-  {
-    Serial.println("Connected to LED server");
-    connectedToLedServer = true;
-  }
-  else
-  {
-    Serial.println("Connection to LED server failed");
-  }
+  // // connect to led server
+  // if (client.connect(ledServer, port))
+  // {
+  //   Serial.println("Connected to LED server");
+  //   connectedToLedServer = true;
+  // }
+  // else
+  // {
+  //   Serial.println("Connection to LED server failed");
+  // }
 }
 
 bool wifi_reset_flag = false;
@@ -231,12 +231,14 @@ bool right_button_pressed = false;
 void loop(void)
 {
   unsigned long elapsed_time = millis();
+
   myConstellation->run(elapsed_time, right_button_presses, brightness);
 
   timeClient.update(); // Update the NTP client
 
   int hours = timeClient.getHours();
   int minutes = timeClient.getMinutes();
+  int seconds = timeClient.getSeconds();
   int day = timeClient.getDay();
 
   if (prevDay != day)
@@ -248,6 +250,14 @@ void loop(void)
 
   if (!auto_on && brightness == 0 && hours == 18 && minutes == 0)
   {
+    // auto reboot
+    const unsigned long ROLLOVER_THRESHOLD = 360000000UL;
+    if (millis() >= ROLLOVER_THRESHOLD && seconds == 0)
+    {
+      Serial.println("Millis approaching rollover - Rebooting!");
+      ESP.restart(); // or ESP.reset() in older cores
+    }
+
     Serial.println("It's 6PM!");
 
     brightness = 51;

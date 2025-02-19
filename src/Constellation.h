@@ -8,7 +8,7 @@
 
 #include <FastLED.h>  // Include FastLED library
 
-#define DATA_PIN 23
+#define DATA_PIN 4 // TODO change to go in main
 
 class Constellation {
 public:
